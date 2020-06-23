@@ -43,7 +43,6 @@ export class FabricjsEditorComponent implements AfterViewInit {
   constructor() { }
 
   ngAfterViewInit(): void {
-
     // setup front side canvas
     this.canvas = new fabric.Canvas(this.htmlCanvas.nativeElement, {
       hoverCursor: 'pointer',

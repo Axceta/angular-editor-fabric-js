@@ -1,8 +1,8 @@
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { FabricjsEditorComponent } from './angular-editor-fabric-js.component';
+import { FabricjsEditorComponent, DEFAULT_CANVAS_WIDTH } from './angular-editor-fabric-js.component';
 
-describe('FabricjsLibraryComponent', () => {
+fdescribe('FabricjsLibraryComponent', () => {
   let component: FabricjsEditorComponent;
   let fixture: ComponentFixture<FabricjsEditorComponent>;
 
@@ -19,7 +19,12 @@ describe('FabricjsLibraryComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
-    expect(component).toBeTruthy();
+  it('SHOULD have the expected default width', () => {
+    const canvas = getCanvas();
+    expect(canvas.width).toBe(DEFAULT_CANVAS_WIDTH);
   });
+
+  function getCanvas() {
+    return fixture.debugElement.nativeElement.querySelector('#canvas');
+  }
 });
