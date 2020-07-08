@@ -9,7 +9,8 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "publish": "npm publish ./dist/angular-editor-fabric-js"
+    "publish": "npm publish --registry http://10.10.10.40:4873 ./dist/angular-editor-fabric-js && echo 'Go to http://10.10.10.40:4873'",
+    "flow:publish": "npm run build:lib && npm run publish"
   },
   "private": true,
   "dependencies": {

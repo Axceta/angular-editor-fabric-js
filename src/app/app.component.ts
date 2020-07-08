@@ -24,7 +24,7 @@ export class AppComponent {
   }
 
   public loadCanvasFromJSON() {
-    this.canvas.loadCanvasFromJSON();
+    this.canvas.importCanvasFromLocalStorage();
   }
 
   public confirmClear() {
@@ -56,7 +56,7 @@ export class AppComponent {
   }
 
   public addFigure(figure) {
-    this.canvas.addFigure(figure);
+    this.canvas.addPredefinedFigure(figure);
   }
 
   public removeSelected() {
@@ -88,7 +88,7 @@ export class AppComponent {
   }
 
   public setId() {
-    this.canvas.setId();
+    this.canvas.setIdOfSelectedObject();
   }
 
   public setOpacity() {

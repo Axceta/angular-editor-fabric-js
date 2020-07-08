@@ -1,5 +1,7 @@
-import { Component, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, ViewChild, ElementRef, AfterViewInit, Output, EventEmitter } from '@angular/core';
 import { fabric } from 'fabric';
+
+export const DEFAULT_CANVAS_WIDTH = 500;
 
 @Component({
   selector: 'angular-editor-fabric-js',
@@ -7,9 +9,14 @@ import { fabric } from 'fabric';
   styleUrls: ['./angular-editor-fabric-js.component.css'],
 })
 export class FabricjsEditorComponent implements AfterViewInit {
-  @ViewChild('htmlCanvas') htmlCanvas: ElementRef;
+  @ViewChild('htmlCanvas') private htmlCanvas: ElementRef;
 
-  private canvas: fabric.Canvas;
+  @Output() moving = new EventEmitter();
+  @Output() modified = new EventEmitter();
+  @Output() selection = new EventEmitter();
+  @Output() cleared = new EventEmitter();
+
+  public canvas: fabric.Canvas;
   public props = {
     canvasFill: '#ffffff',
     canvasImage: '',
@@ -29,14 +36,12 @@ export class FabricjsEditorComponent implements AfterViewInit {
   public textString: string;
   public url: string | ArrayBuffer = '';
   public size: any = {
-    width: 500,
+    width: DEFAULT_CANVAS_WIDTH,
     height: 800
   };
 
   public json: any;
-  private globalEditor = false;
   public textEditor = false;
-  private imageEditor = false;
   public figureEditor = false;
   public selected: any;
 
@@ -52,9 +57,10 @@ export class FabricjsEditorComponent implements AfterViewInit {
     });
 
     this.canvas.on({
-      'object:moving': (e) => { },
-      'object:modified': (e) => { },
+      'object:moving': (e) => { this.moving.emit(e); },
+      'object:modified': (e) => { this.modified.emit(e); },
       'object:selected': (e) => {
+        this.selection.emit(e);
 
         const selectedObject = e.target;
         this.selected = selectedObject;
@@ -66,7 +72,6 @@ export class FabricjsEditorComponent implements AfterViewInit {
 
         if (selectedObject.type !== 'group' && selectedObject) {
 
-          this.getId();
           this.getOpacity();
 
           switch (selectedObject.type) {
@@ -92,6 +97,7 @@ export class FabricjsEditorComponent implements AfterViewInit {
         }
       },
       'selection:cleared': (e) => {
+        this.cleared.emit(e);
         this.selected = null;
         this.resetPanels();
       }
@@ -99,16 +105,18 @@ export class FabricjsEditorComponent implements AfterViewInit {
 
     this.canvas.setWidth(this.size.width);
     this.canvas.setHeight(this.size.height);
-
-    // get references to the html canvas element & its context
-    this.canvas.on('mouse:down', (e) => {
-      const canvasElement: any = document.getElementById('canvas');
-    });
-
   }
 
 
   /*------------------------Block elements------------------------*/
+
+  /**
+   * Subscribe to a FabricJS event. You can find the list of available events here: http://fabricjs.com/docs/fabric.Canvas.html
+   * @param eventName The event name to listen to
+   */
+  public onEvent(eventName: string, callback: (event) => void) {
+    this.canvas.on({[eventName]: callback});
+  }
 
   // Block "Size"
 
@@ -198,8 +206,34 @@ export class FabricjsEditorComponent implements AfterViewInit {
 
   // Block "Add figure"
 
-  addFigure(figure) {
+  /**
+   * Add a figure to the canvas following the definition you provide.
+   * If you passed a string to this function, please rename your implementation for addPredefinedFigure().
+   * @param figure Your custom figure definition
+   * @param id (Optional) The unique id you want to give to the figure. If no ID is specified a random one will be picked.
+   * @returns The ID of the created figure
+   */
+  public addFigure(figure: fabric.Rect | fabric.Triangle | fabric.Circle | fabric.Object, id?: number): number {
+    const figureId: number = id || this.randomId();
+
+    this.extend(figure, figureId);
+    this.canvas.add(figure);
+    this.selectItemAfterAdded(figure);
+
+    return figureId;
+  }
+
+  /**
+   * Add a predefined figure to the canvas. If you want to create a custom figure, please use addFigure().
+   * @param figure The name of the predefined figure. Can be one of the following: 'rectangle', 'square', 'triangle', 'circle'.
+   * @param id (Optional) The unique id you want to give to the figure. If no ID is specified a random one will be picked.
+   * @returns The ID of the created figure
+   * TODO: Move to app.component
+   */
+  public addPredefinedFigure(figure: string, id?: number): number {
     let add: any;
+    const figureId: number = id || this.randomId();
+
     switch (figure) {
       case 'rectangle':
         add = new fabric.Rect({
@@ -224,19 +258,30 @@ export class FabricjsEditorComponent implements AfterViewInit {
         });
         break;
     }
-    this.extend(add, this.randomId());
-    this.canvas.add(add);
-    this.selectItemAfterAdded(add);
+
+    return this.addFigure(add, figureId);
+  }
+
+  // TODO: Add copies of this for triangle and circle
+  // TODO: Add JSdoc
+  public addRect(options: fabric.IRectOptions, id?: number): number {
+    let figure = new fabric.Rect(options);
+
+    if (id) {
+      figure = Object.assign(figure, { data: { id }});
+    }
+
+    return this.addFigure(figure, id);
   }
 
   /*Canvas*/
 
   cleanSelect() {
-    this.canvas.discardActiveObject().renderAll();
+    this.canvas.discardActiveObject();
   }
 
   selectItemAfterAdded(obj) {
-    this.canvas.discardActiveObject().renderAll();
+    this.canvas.discardActiveObject();
     this.canvas.setActiveObject(obj);
   }
 
@@ -389,18 +434,54 @@ export class FabricjsEditorComponent implements AfterViewInit {
     }
   }
 
-  getId() {
-    this.props.id = this.canvas.getActiveObject().toObject().id;
+  /**
+   * @deprecated Was renamed for getidOfSelectedObject
+   */
+  public getId(): any {
+    return this.getIdOfSelectedObject();
   }
 
-  setId() {
+  /**
+   * Returns the id of the currently selected object
+   * @return Object ID
+   */
+  public getIdOfSelectedObject(): string | number {
+    this.props.id = this.canvas.getActiveObject().toObject().id;
+    return this.props.id;
+  }
+
+  /**
+   * @deprecated Was renamed for setIdOfSelectedObject
+   */
+  public setId(): void {
+    this.setIdOfSelectedObject();
+  }
+
+  public setIdOfSelectedObject(): void {
     const val = this.props.id;
     const complete = this.canvas.getActiveObject().toObject();
-    console.log(complete);
+
+    // FIXME: This is bad, it overrides the toObject() method. If something else modifies the object it wont be picked up.
     this.canvas.getActiveObject().toObject = () => {
       complete.id = val;
       return complete;
     };
+  }
+
+  /**
+   * Loops through all canvas objects and find one matching the supplied ID.
+   * @param id The ID to look for
+   */
+  public getObjectWithID(id: number): fabric.Object {
+    let foundObject: fabric.Object;
+
+    this.canvas.getObjects().forEach((item: any) => {
+      if (item.id === id) {
+        foundObject = item;
+      }
+    });
+
+    return foundObject;
   }
 
   getOpacity() {
@@ -547,12 +628,25 @@ export class FabricjsEditorComponent implements AfterViewInit {
     }
   }
 
-  confirmClear() {
+  /**
+   * Show a confirmation to tu user before clearing the canvas.
+   */
+  public confirmClear() {
     if (confirm('Are you sure?')) {
-      this.canvas.clear();
+      this.clear();
     }
   }
 
+  /**
+   * Clear the canvas.
+   */
+  public clear() {
+    this.canvas.clear();
+  }
+
+  /**
+   * @
+   */
   rasterize() {
     const image = new Image();
     image.src = this.canvas.toDataURL({format: 'png'});
@@ -574,24 +668,36 @@ export class FabricjsEditorComponent implements AfterViewInit {
 
   }
 
-  loadCanvasFromJSON() {
-    const CANVAS = localStorage.getItem('Kanvas');
-    console.log('CANVAS');
-    console.log(CANVAS);
+  public importCanvasFromLocalStorage() {
+    this.loadCanvas(localStorage.getItem('Kanvas'));
+  }
 
-    // and load everything from the same json
-    this.canvas.loadFromJSON(CANVAS, () => {
-      console.log('CANVAS untar');
-      console.log(CANVAS);
+  public importCanvasFromJson(json: string) {
+    this.loadCanvas(json);
+  }
 
-      // making sure to render canvas at the end
+  public importFromObject(object: any) {
+    this.loadCanvas(object);
+  }
+
+  private loadCanvas(canvasData: string | fabric.Object) {
+    this.canvas.loadFromJSON(canvasData, () => {
       this.canvas.renderAll();
-
-      // and checking if object's "name" is preserved
-      console.log('this.canvas.item(0).name');
-      console.log(this.canvas);
     });
+  }
 
+  /**
+   * @deprecated Use importCanvasFromLocalStorage() instead.
+   */
+  public loadCanvasFromJSON() {
+    this.importCanvasFromLocalStorage();
+  }
+
+  /**
+   * Get the full canvas data as a Javascript object
+   */
+  public getCanvasData(propertiesToInclude?: string[]): any {
+    return this.canvas.toObject(propertiesToInclude);
   }
 
   rasterizeJSON() {
@@ -600,8 +706,6 @@ export class FabricjsEditorComponent implements AfterViewInit {
 
   resetPanels() {
     this.textEditor = false;
-    this.imageEditor = false;
     this.figureEditor = false;
   }
-
 }
